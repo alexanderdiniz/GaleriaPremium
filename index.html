@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Galeria com Controle Remoto via GitHub API</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --card: #334155;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --success: #22c55e;
+      --danger: #ef4444;
+    }
+
+    body {
+      font-family: system-ui, 'Segoe UI', 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 1.5rem;
+      line-height: 1.5;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.4rem 1.2rem;
+      border-radius: 40px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-top: 1rem;
+      background: var(--surface);
+    }
+
+    .status-badge.active {
+      background: var(--success);
+      color: #0a0f1c;
+    }
+
+    .status-badge.blocked {
+      background: var(--danger);
+      color: white;
+    }
+
+    .status-badge.waiting {
+      background: #f59e0b;
+      color: #0a0f1c;
+    }
+
+    /* Admin Panel */
+    .admin-panel {
+      background: var(--surface);
+      border-radius: 1.5rem;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      border: 1px solid #334155;
+      display: none;
+    }
+
+    .admin-panel h3 {
+      margin-bottom: 1rem;
+      color: #facc15;
+    }
+
+    .admin-group {
+      margin-bottom: 1rem;
+    }
+
+    .admin-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 0.3rem;
+      color: var(--text-muted);
+    }
+
+    .admin-group input {
+      width: 100%;
+      padding: 0.6rem;
+      border-radius: 0.8rem;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: white;
+      font-family: monospace;
+    }
+
+    .admin-controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin: 1.5rem 0 1rem;
+    }
+
+    button {
+      background: var(--primary);
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 2rem;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: var(--primary-hover);
+      transform: scale(1.02);
+    }
+
+    .btn-success {
+      background: var(--success);
+    }
+    .btn-success:hover {
+      background: #16a34a;
+    }
+    .btn-danger {
+      background: var(--danger);
+    }
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+
+    .admin-message {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      padding: 0.5rem;
+      border-radius: 0.8rem;
+    }
+
+    .admin-message.success {
+      background: #166534;
+      color: #bbf7d0;
+    }
+    .admin-message.error {
+      background: #7f1d1d;
+      color: #fecaca;
+    }
+
+    /* Galeria */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.8rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .gallery-item {
+      background: var(--card);
+      border-radius: 1.2rem;
+      overflow: hidden;
+      transition: transform 0.2s ease;
+      cursor: pointer;
+    }
+
+    .gallery-item:hover {
+      transform: translateY(-5px);
+    }
+
+    .gallery-item img, .gallery-item video {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      display: block;
+    }
+
+    .video-play-icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.6);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: white;
+      pointer-events: none;
+    }
+
+    .media-overlay {
+      position: relative;
+    }
+
+    .block-message, .loading-placeholder {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 4rem 2rem;
+      background: var(--surface);
+      border-radius: 2rem;
+      color: var(--text-muted);
+    }
+
+    /* Lightbox */
+    .lightbox {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lightbox-content {
+      max-width: 90vw;
+      max-height: 90vh;
+      position: relative;
+    }
+
+    .lightbox-content img,
+    .lightbox-content video {
+      max-width: 100%;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: 1rem;
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: -40px;
+      right: -10px;
+      font-size: 40px;
+      color: white;
+      cursor: pointer;
+      background: none;
+      border: none;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ Galeria Premium</h1>
+  <div id="status-badge" class="status-badge waiting">🔒 Verificando permissão...</div>
+</header>
+
+<!-- Painel Admin (só com ?admin=123) -->
+<div id="admin-panel" class="admin-panel">
+  <h3>🛠️ Painel de Controle (Administrador)</h3>
+  <div class="admin-group">
+    <label>📦 Repositório (ex: "usuario/repo")</label>
+    <input type="text" id="repo-input" placeholder="seu-usuario/nome-do-repo">
+  </div>
+  <div class="admin-group">
+    <label>📄 Caminho do arquivo control.json</label>
+    <input type="text" id="path-input" value="admin/control.json">
+  </div>
+  <div class="admin-group">
+    <label>🔑 GitHub Token (escopo: repo)</label>
+    <input type="password" id="token-input" placeholder="github_pat_xxx...">
+  </div>
+  <div class="admin-controls">
+    <button id="btn-liberar" class="btn-success">✅ Liberar galeria (true)</button>
+    <button id="btn-bloquear" class="btn-danger">🔒 Bloquear galeria (false)</button>
+  </div>
+  <div id="admin-message" class="admin-message"></div>
+  <div class="admin-note" style="margin-top:1rem; font-size:0.75rem; color:#64748b;">
+    ⚠️ O token fica apenas no seu navegador. Nunca compartilhe. O commit será feito com a mensagem "Atualizar permissão via painel admin".
+  </div>
+</div>
+
+<main>
+  <div id="gallery-container" class="gallery-grid">
+    <div class="loading-placeholder">⏳ Carregando permissão...</div>
+  </div>
+</main>
+
+<footer>
+  <p>📸 Imagens de alta qualidade | Controle remoto via GitHub API</p>
+</footer>
+
+<div id="lightbox" class="lightbox">
+  <button class="lightbox-close">&times;</button>
+  <div class="lightbox-content">
+    <img id="lightbox-img" style="display: none;" alt="Ampliada">
+    <video id="lightbox-video" controls style="display: none;"></video>
+  </div>
+</div>
+
+<script>
+  // ------------------------- CONFIGURAÇÕES GLOBAIS -------------------------
+  // URLs relativas para os arquivos do repositório (usadas pelos usuários comuns)
+  const CONTROL_URL = 'admin/control.json';        // será lido via fetch normal
+  const IMAGES_LIST_URL = 'admin/images.json';     // você pode criar esse arquivo com a lista de mídias
+
+  // Dados mockados de exemplo (substitua pelo seu images.json real depois)
+  const MOCK_MEDIAS = [
+    { type: 'image', src: 'https://picsum.photos/id/1015/800/600', thumb: 'https://picsum.photos/id/1015/400/300', alt: 'Produto em alta resolução' },
+    { type: 'image', src: 'https://picsum.photos/id/104/800/600', thumb: 'https://picsum.photos/id/104/400/300', alt: 'Detalhe do acabamento' },
+    { type: 'video', src: 'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4', thumb: 'https://picsum.photos/id/20/400/300', poster: 'https://picsum.photos/id/20/800/600', alt: 'Vídeo demonstrativo' }
+  ];
+
+  let currentPermission = false;
+  let mediaList = MOCK_MEDIAS;
+
+  // Elementos da UI principal
+  const statusBadge = document.getElementById('status-badge');
+  const galleryContainer = document.getElementById('gallery-container');
+
+  // ------------------------- FUNÇÕES DE PERMISSÃO (LEITURA) -------------------------
+  async function fetchControlStatus() {
+    try {
+      const response = await fetch(CONTROL_URL + '?t=' + Date.now(), { cache: 'no-store' });
+      if (!response.ok) throw new Error('Arquivo control.json não encontrado');
+      const data = await response.json();
+      return data.showImages === true;
+    } catch (err) {
+      console.warn('Erro ao ler control.json, usando valor padrão false:', err);
+      return false;
+    }
+  }
+
+  async function fetchMediaList() {
+    try {
+      const resp = await fetch(IMAGES_LIST_URL + '?t=' + Date.now(), { cache: 'no-store' });
+      if (resp.ok) {
+        const data = await resp.json();
+        return data.medias || data.images || MOCK_MEDIAS;
+      }
+    } catch (e) {}
+    return MOCK_MEDIAS;
+  }
+
+  // ------------------------- RENDERIZAÇÃO DA GALERIA -------------------------
+  async function loadGallery() {
+    galleryContainer.innerHTML = `<div class="loading-placeholder">🖼️ Carregando mídias...</div>`;
+    const medias = await fetchMediaList();
+    if (!medias || medias.length === 0) {
+      galleryContainer.innerHTML = `<div class="block-message">📭 Nenhuma mídia disponível hoje.</div>`;
+      return;
+    }
+    const fragment = document.createDocumentFragment();
+    medias.forEach(media => {
+      const card = document.createElement('div');
+      card.className = 'gallery-item';
+      if (media.type === 'image') {
+        const img = document.createElement('img');
+        img.src = media.thumb || media.src;
+        img.alt = media.alt;
+        img.loading = 'lazy';
+        img.addEventListener('click', () => openLightbox(media));
+        card.appendChild(img);
+      } else if (media.type === 'video') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'media-overlay';
+        const thumb = document.createElement('img');
+        thumb.src = media.thumb;
+        thumb.alt = media.alt;
+        thumb.addEventListener('click', () => openLightbox(media));
+        const playIcon = document.createElement('div');
+        playIcon.className = 'video-play-icon';
+        playIcon.innerHTML = '▶';
+        wrapper.appendChild(thumb);
+        wrapper.appendChild(playIcon);
+        card.appendChild(wrapper);
+      }
+      fragment.appendChild(card);
+    });
+    galleryContainer.innerHTML = '';
+    galleryContainer.appendChild(fragment);
+  }
+
+  function clearGallery() {
+    galleryContainer.innerHTML = `<div class="block-message">
+      🔒 Galeria bloqueada pelo administrador. As mídias não estão disponíveis.
+    </div>`;
+  }
+
+  async function updateUIByPermission() {
+    const canShow = await fetchControlStatus();
+    currentPermission = canShow;
+    if (canShow) {
+      statusBadge.textContent = '✅ Galeria liberada';
+      statusBadge.className = 'status-badge active';
+      await loadGallery();
+    } else {
+      statusBadge.textContent = '⛔ Galeria bloqueada';
+      statusBadge.className = 'status-badge blocked';
+      clearGallery();
+    }
+  }
+
+  // ------------------------- LIGHTBOX -------------------------
+  function openLightbox(media) {
+    const lightbox = document.getElementById('lightbox');
+    const imgEl = document.getElementById('lightbox-img');
+    const videoEl = document.getElementById('lightbox-video');
+    imgEl.style.display = 'none';
+    videoEl.style.display = 'none';
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+    if (media.type === 'image') {
+      imgEl.src = media.src;
+      imgEl.alt = media.alt;
+      imgEl.style.display = 'block';
+    } else if (media.type === 'video') {
+      videoEl.src = media.src;
+      if (media.poster) videoEl.poster = media.poster;
+      videoEl.style.display = 'block';
+      videoEl.load();
+    }
+    lightbox.style.display = 'flex';
+  }
+
+  function closeLightbox() {
+    const lightbox = document.getElementById('lightbox');
+    const video = document.getElementById('lightbox-video');
+    video.pause();
+    video.removeAttribute('src');
+    lightbox.style.display = 'none';
+  }
+
+  // ------------------------- ADMIN: ALTERAR CONTROL.JSON VIA API DO GITHUB -------------------------
+  async function updateControlJson(newValue, repo, filePath, token) {
+    const apiUrl = `https://api.github.com/repos/${repo}/contents/${filePath}`;
+    try {
+      // 1. Obter o SHA atual do arquivo (necessário para editar)
+      let sha = null;
+      let existingContent = null;
+      const getResp = await fetch(apiUrl, {
+        headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+      });
+      if (getResp.status === 200) {
+        const data = await getResp.json();
+        sha = data.sha;
+        existingContent = atob(data.content); // conteúdo atual (decodificado)
+      } else if (getResp.status !== 404) {
+        throw new Error(`Erro ao obter arquivo: ${getResp.status}`);
+      }
+      // 2. Preparar novo conteúdo
+      const newContentObj = { showImages: newValue };
+      const newContentStr = JSON.stringify(newContentObj, null, 2);
+      const encodedContent = btoa(unescape(encodeURIComponent(newContentStr))); // btoa com UTF-8
+      // 3. Fazer commit
+      const commitPayload = {
+        message: `Atualizar permissão para ${newValue} via painel admin`,
+        content: encodedContent,
+        sha: sha || undefined
+      };
+      const putResp = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' },
+        body: JSON.stringify(commitPayload)
+      });
+      if (!putResp.ok) {
+        const errorData = await putResp.json();
+        throw new Error(errorData.message || 'Erro ao fazer commit');
+      }
+      return { success: true, message: `Permissão alterada para ${newValue} com sucesso!` };
+    } catch (err) {
+      console.error(err);
+      return { success: false, message: err.message };
+    }
+  }
+
+  // ------------------------- INICIALIZAÇÃO DA PÁGINA (COMUM) -------------------------
+  async function initCommon() {
+    await updateUIByPermission();
+    setInterval(updateUIByPermission, 30000); // verifica a cada 30s
+    // Lightbox events
+    document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
+    document.getElementById('lightbox').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('lightbox')) closeLightbox();
+    });
+  }
+
+  // ------------------------- ADMIN PANEL (SÓ ATIVO COM TOKEN NA URL) -------------------------
+  function initAdmin() {
+    const adminDiv = document.getElementById('admin-panel');
+    const repoInput = document.getElementById('repo-input');
+    const pathInput = document.getElementById('path-input');
+    const tokenInput = document.getElementById('token-input');
+    const liberarBtn = document.getElementById('btn-liberar');
+    const bloquearBtn = document.getElementById('btn-bloquear');
+    const msgDiv = document.getElementById('admin-message');
+
+    // Tenta preencher automaticamente com dados do repositório atual (via hostname do GitHub Pages)
+    const hostParts = window.location.hostname.split('.');
+    if (hostParts[0] && hostParts[0] !== 'localhost' && hostParts[0] !== '127.0.0.1') {
+      // Exemplo: usuario.github.io -> repo = usuario/nome-do-repo? Não dá pra saber o nome do repo só pelo subdomínio.
+      // Deixamos vazio, o admin preenche.
+    }
+
+    liberarBtn.onclick = async () => {
+      const repo = repoInput.value.trim();
+      const path = pathInput.value.trim();
+      const token = tokenInput.value.trim();
+      if (!repo || !path || !token) {
+        msgDiv.innerHTML = 'Preencha repositório, caminho e token.';
+        msgDiv.className = 'admin-message error';
+        return;
+      }
+      msgDiv.innerHTML = '🔄 Enviando...';
+      msgDiv.className = 'admin-message';
+      const result = await updateControlJson(true, repo, path, token);
+      if (result.success) {
+        msgDiv.innerHTML = `✅ ${result.message}`;
+        msgDiv.className = 'admin-message success';
+        await updateUIByPermission(); // atualiza a UI imediatamente após alterar
+      } else {
+        msgDiv.innerHTML = `❌ Erro: ${result.message}`;
+        msgDiv.className = 'admin-message error';
+      }
+    };
+
+    bloquearBtn.onclick = async () => {
+      const repo = repoInput.value.trim();
+      const path = pathInput.value.trim();
+      const token = tokenInput.value.trim();
+      if (!repo || !path || !token) {
+        msgDiv.innerHTML = 'Preencha repositório, caminho e token.';
+        msgDiv.className = 'admin-message error';
+        return;
+      }
+      msgDiv.innerHTML = '🔄 Enviando...';
+      msgDiv.className = 'admin-message';
+      const result = await updateControlJson(false, repo, path, token);
+      if (result.success) {
+        msgDiv.innerHTML = `✅ ${result.message}`;
+        msgDiv.className = 'admin-message success';
+        await updateUIByPermission();
+      } else {
+        msgDiv.innerHTML = `❌ Erro: ${result.message}`;
+        msgDiv.className = 'admin-message error';
+      }
+    };
+  }
+
+  // Verifica se a URL contém ?admin=123 para mostrar o painel admin
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('admin') === '123') {
+    document.getElementById('admin-panel').style.display = 'block';
+    initAdmin();
+  }
+
+  // Inicia a parte comum (usuários e também o admin verá a galeria)
+  initCommon();
+</script>
+</body>
+</html>
